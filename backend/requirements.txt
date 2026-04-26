@@ -1,0 +1,20 @@
+fastapi
+python-dotenv
+python-multipart
+
+# LangChain ecosystem
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-text-splitters
+langchain-chroma
+
+# Vector DB
+chromadb
+
+# Data validation
+pydantic
+
+# Optional (sering kepakai)
+httpx

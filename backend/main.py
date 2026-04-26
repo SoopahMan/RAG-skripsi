@@ -5,12 +5,22 @@ from pydantic import BaseModel
 from core.ingestion import ingest_pdf_to_chroma
 from core.rag import get_rag_chain
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
+
 
 load_dotenv()
 
 api_key=os.getenv("OPENAI_API_KEY")
 
 app = FastAPI(title="AI Tutor IPA SD")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # frontend kamu
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class QuestionRequest(BaseModel):
     question: str
