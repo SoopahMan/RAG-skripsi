@@ -3,7 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
-from .database import get_vectorstore
+from .vector_database import get_vectorstore
 from dotenv import load_dotenv
 import os
 
@@ -15,7 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
-from .database import get_vectorstore
+from .vector_database import get_vectorstore
 from dotenv import load_dotenv
 import os
 

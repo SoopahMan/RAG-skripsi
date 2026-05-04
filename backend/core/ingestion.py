@@ -1,6 +1,6 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from .database import get_vectorstore
+from .vector_database import get_vectorstore
 
 def ingest_pdf_to_chroma(file_path: str):
     # 1. Load PDF
