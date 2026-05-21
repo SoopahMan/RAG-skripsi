@@ -52,7 +52,6 @@ class TutorState(TypedDict):
     answer:       Optional[str]
     final_result: Optional[dict]
 
-
 # =========================
 # PROMPT TEMPLATES
 # =========================
@@ -335,20 +334,61 @@ tutor_graph = build_graph()
 # so router.py needs zero changes.
 # =========================
 def get_rag_response(
-    question:      str,
-    history:       list = [],
-    feedback_mode: str  = "belum_paham",
+    question: str,
+    history: list = [],
+    feedback_mode: str = "belum_paham",
 ) -> dict:
+
+    # =========================================================
+    # HARDCODE LIST MATERI
+    # =========================================================
+    materi_keywords = [
+        "materi apa",
+        "materi yang kamu punya",
+        "apa saja materinya",
+        "materi tersedia",
+        "daftar materi",
+        "kamu bisa apa",
+    ]
+
+    lower_q = question.lower()
+
+    if any(k in lower_q for k in materi_keywords):
+        return {
+            "answer": """
+Aku punya beberapa materi IPA kelas 5 🌟
+
+📚 Daftar materi:
+1. Kondisi geografis wilayah Indonesia.
+2. Persebaran dan perbedaan flora dan fauna di Indonesia.
+3. Upaya menjaga kelestarian kekayaan alam.
+4. Ekosistem dan lingkungan.
+5. Perubahan tubuh manusia
+6. Peninggalan sejarah dan budaya
+
+
+
+Kamu mau belajar materi yang mana dulu? 😊
+""",
+            "confidence_score": 1.0,
+            "source_found": True,
+            "feedback_mode": feedback_mode,
+            "status": "success",
+        }
+
+    # =========================================================
+    # FLOW NORMAL RAG
+    # =========================================================
     initial_state: TutorState = {
-        "question":        question,
-        "history":         history,
-        "feedback_mode":   feedback_mode,
-        "context":         None,
-        "history_text":    None,
+        "question": question,
+        "history": history,
+        "feedback_mode": feedback_mode,
+        "context": None,
+        "history_text": None,
         "confidence_score": None,
-        "source_found":    None,
-        "answer":          None,
-        "final_result":    None,
+        "source_found": None,
+        "answer": None,
+        "final_result": None,
     }
 
     final_state = tutor_graph.invoke(initial_state)

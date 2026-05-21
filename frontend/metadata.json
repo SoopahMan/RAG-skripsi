@@ -1,6 +1,6 @@
 {
-  "name": "Mentora-ITS",
-  "description": "Intelligent Tutoring System berbasis RAG untuk siswa SDN Bandungrejosari 1 Malang dengan metode Digital Scaffolding.",
+  "name": "EduBot: Sahabat Belajar Pintar",
+  "description": "Chatbot edukasi interaktif untuk siswa kelas 5 SD dan Dasbor Guru.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

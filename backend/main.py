@@ -8,7 +8,7 @@ from core.auth.auth import hash_password
 from model.auth_model import User
 from config.database import Base, engine
 
-from endpoint import chat, auth
+from endpoint import chat, auth, ujian
 from contextlib import asynccontextmanager
 
 
@@ -58,3 +58,4 @@ app.add_middleware(
 
 app.include_router(chat.router)
 app.include_router(auth.router)
+app.include_router(ujian.router)

@@ -1,16 +1,55 @@
-// services/useRBAC.js
+import { useState, useEffect } from 'react';
 
-import { getUser } from "./auth";
-import { ROLE_PERMISSIONS } from "./rbac";
+export function useRBAC() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-export const useRBAC = () => {
-  const user = getUser();
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('access_token');
 
-  const hasPermission = (permission) => {
-    if (!user || user.expired) return false;
+    if (savedUser && token) {
+      const parsed = JSON.parse(savedUser);
+      // pastikan shape sesuai RequireAuth
+      setUser({
+        role: parsed.role,
+        name: parsed.username || parsed.name,
+        expired: false,
+      });
+    }
 
-    return ROLE_PERMISSIONS[user.role]?.includes(permission);
+    setLoading(false);
+  }, []);
+
+  const login = (userData) => {
+    // userData: { role, username }
+    const formatUser = {
+      role: userData.role,
+      username: userData.username,
+      expired: false,
+    };
+
+    // simpan agar refresh tetap bisa dibaca
+    localStorage.setItem('user', JSON.stringify(formatUser));
+
+    // token akan disimpan oleh backend/auth layer lain (optional)
+    setUser({
+      role: userData.role,
+      name: userData.username,
+      expired: false,
+    });
   };
 
-  return { user, hasPermission };
-};
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+  };
+
+  const hasPermission = (allowedRoles) => {
+    return user && allowedRoles.includes(user.role);
+  };
+
+  return { user, loading, hasPermission, login, logout };
+}
+

@@ -1,126 +1,102 @@
-import React, { useState } from 'react';
-import Sidebar from '../components/Sidebar';
-import MainContent from '../components/MainContent';
-import ChatPanel from '../components/ChatPanel';
-import LoginPage from './LoginPage';
-import { getUser } from '../services/auth';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, BookOpen, MessageCircle, Star, Sparkles } from 'lucide-react';
+import { useRBAC } from '../services/useRBAC';
 
-const SAMPLE_MODULES = [
-  {
-    id: 'm1',
-    title: 'Sistem Organ Manusia',
-    subject: 'IPAS (Sains)',
-    grade: '5',
-    content: `
-# Mengenal Sistem Organ Tubuh Manusia
+export default function Homepage() {
+  const navigate = useNavigate();
+  const { user, logout } = useRBAC();
 
-Tubuh manusia adalah sistem yang sangat kompleks dan menakjubkan. Untuk menjalankan fungsinya dengan baik, tubuh kita memiliki berbagai sistem organ yang bekerja sama.
-
-## 1. Sistem Pencernaan
-Sistem ini bertugas mengolah makanan menjadi energi. Prosesnya dimulai dari mulut, kerongkongan, lambung, usus halus, hingga usus besar.
-
-## 2. Sistem Pernapasan
-Bertugas mengambil oksigen dari udara dan mengeluarkan karbon dioksida. Organ utamanya adalah paru-paru.
-
-## 3. Sistem Peredaran Darah
-Jantung memompa darah ke seluruh tubuh melalui pembuluh darah untuk membawa nutrisi dan oksigen ke setiap sel.
-
-### Mengapa Kita Harus Belajar Ini?
-Memahami cara kerja tubuh membantu kita menjaga kesehatan. Misalnya, kita tahu mengapa makan makanan bergizi penting bagi sistem pencernaan kita.
-
----
-*Konteks: SDN Bandungrejosari 1 - Modul Digital Semester 2*
-    `
-  },
-  {
-    id: 'm2',
-    title: 'Perkalian Desimal',
-    subject: 'Matematika',
-    grade: '5',
-    content: `
-# Mari Belajar Perkalian Desimal!
-
-Pernahkah kamu pergi ke toko dan melihat harga barang yang menggunakan koma? Itulah bilangan desimal.
-
-## Langkah-langkah Perkalian Desimal:
-1. Kalikan bilangan tersebut seolah-olah tidak ada koma (seperti perkalian biasa).
-2. Hitung total angka di belakang koma dari kedua bilangan yang dikalikan.
-3. Letakkan koma pada hasil perkalian sesuai dengan total jumlah angka di belakang koma tadi.
-
-### Contoh:
-**0.5 x 0.2**
-- Anggap saja 5 x 2 = 10.
-- 0.5 (1 angka belakang koma) + 0.2 (1 angka belakang koma) = 2 angka belakang koma.
-- Jadi hasil akhirnya adalah **0.10** atau **0.1**.
-
-### Ayo Berlatih!
-Coba hitung berapa hasil dari 0.3 x 4? Ingat langkah-langkahnya ya!
-    `
-  },
-  {
-    id: 'm3',
-    title: 'Ekosistem dan Jaring Makanan',
-    subject: 'IPAS (Lingkungan)',
-    grade: '5',
-    content: `
-# Ekosistem di Sekitar Kita
-
-Ekosistem adalah hubungan timbal balik antara makhluk hidup dengan lingkungannya.
-
-## Komponen Ekosistem:
-- **Biotik**: Makhluk hidup (hewan, tumbuhan, manusia).
-- **Abiotik**: Benda tak hidup (air, tanah, udara, cahaya matahari).
-
-## Apa itu Jaring-jaring Makanan?
-Jaring-jaring makanan adalah gabungan dari banyak rantai makanan yang saling berhubungan. Di dalamnya ada:
-- **Produsen**: Tumbuhan hijau yang bisa membuat makanan sendiri.
-- **Konsumen**: Hewan yang memakan produsen atau hewan lain.
-- **Pengurai**: Jamur atau bakteri yang mengurai sisa makhluk hidup.
-
-*Ingat: Jika salah satu bagian terganggu, seluruh jaring makanan bisa ikut terganggu!*
-    `
-  }
-];
-
-export default function Homepages() {
-  const user = getUser(); // ✅ ambil dari JWT
-
-  const [viewMode, setViewMode] = useState('read');
-  const [selectedModuleId, setSelectedModuleId] = useState('m1');
-
-  const selectedModule = SAMPLE_MODULES.find(m => m.id === selectedModuleId) || SAMPLE_MODULES[0];
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-white">
-      {/* Sidebar - Fixed width */}
-      <Sidebar 
-        user={user}
-        modules={SAMPLE_MODULES} 
-        selectedModuleId={selectedModuleId} 
-        onSelectModule={setSelectedModuleId}
-        currentView={viewMode}
-        onViewChange={(v) => setViewMode(v)}
-      />
-      
-      {/* Main Layout Area - Flexible */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Module Content / Quiz - Large middle area */}
-        <MainContent 
-          key={`content-${selectedModuleId}-${viewMode}`} 
-          module={selectedModule} 
-          viewMode={viewMode}
-          onAskClick={() => {
-            // Logic to focus chat or scroll
-          }}
-        />
+    <div className="min-h-screen bg-brand-soft flex flex-col">
+      {/* Dynamic Header */}
+      <header className="bg-white px-8 py-6 flex items-center justify-between shadow-sm">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-brand-primary rounded-2xl flex items-center justify-center shadow-md rotate-3">
+            <Star className="text-white w-7 h-7 fill-current" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 tracking-tight">EduBot Pintar</h1>
+            <p className="text-sm text-slate-400 font-bold">Selamat datang, {user?.name}!</p>
+          </div>
+        </div>
         
-        {/* Chat Panel - Fixed width (480px) */}
-        <ChatPanel 
-          key={`chat-${selectedModuleId}-${viewMode}`} 
-          module={selectedModule} 
-          viewMode={viewMode}
-        />
-      </div>
+        <button 
+          onClick={handleLogout}
+          className="flex items-center space-x-2 px-4 py-2 bg-slate-100 text-slate-500 rounded-2xl font-bold hover:bg-red-50 hover:text-red-500 transition-all border-b-4 border-slate-200 hover:border-red-200"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Keluar</span>
+        </button>
+      </header>
+
+      {/* Hero Section */}
+      <main className="flex-1 max-w-5xl mx-auto w-full p-8 flex flex-col justify-center">
+        <div className="text-center mb-12">
+          <div className="inline-block p-2 px-6 bg-brand-secondary/20 rounded-full text-brand-primary font-black text-sm uppercase tracking-widest mb-4">
+            Menu Utama
+          </div>
+          <h2 className="text-4xl md:text-5xl font-black text-slate-800 leading-tight">
+            Apa yang ingin kamu <br />
+            <span className="text-brand-blue">pelajari</span> hari ini?
+          </h2>
+        </div>
+
+        {/* Selection Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div 
+            onClick={() => navigate('/chatbot')}
+            className="card-menu group"
+          >
+            <div className="w-20 h-20 bg-brand-blue/10 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+              <MessageCircle className="w-10 h-10 text-brand-blue" />
+            </div>
+            <h3 className="text-3xl font-black mb-2">Chatbot Edukasi</h3>
+            <p className="text-slate-500 font-bold leading-relaxed">
+              Tanya apa saja tentang PR-mu, EduBot siap bantu jawab dengan mudah!
+            </p>
+            <div className="mt-8 flex items-center text-brand-blue font-black text-lg">
+              Mulai Chat <Sparkles className="ml-2 w-5 h-5 animate-bounce" />
+            </div>
+          </div>
+
+          <div 
+            onClick={() => navigate('/latihan')}
+            className="card-menu group hover:border-brand-accent"
+          >
+            <div className="w-20 h-20 bg-brand-accent/10 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+              <BookOpen className="w-10 h-10 text-brand-accent" />
+            </div>
+            <h3 className="text-3xl font-black mb-2">Latihan Soal</h3>
+            <p className="text-slate-500 font-bold leading-relaxed">
+              Uji kemampuanmu dengan soal-soal seru dan kumpulkan poin prestasi!
+            </p>
+            <div className="mt-8 flex items-center text-brand-accent font-black text-lg">
+              Ayo Latihan! 🏆
+            </div>
+          </div>
+        </div>
+
+        {user?.role === 'admin' && (
+          <div className="mt-12 p-8 bg-slate-800 rounded-[40px] text-white flex items-center justify-between shadow-xl">
+            <div>
+              <h3 className="text-xl font-black">Khusus Guru 👩‍🏫</h3>
+              <p className="text-slate-400 font-bold">Pantau perkembangan seluruh siswa di kelasmu.</p>
+            </div>
+            <button className="bg-white text-slate-800 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-transform">
+              Buka Dasbor
+            </button>
+          </div>
+        )}
+      </main>
+
+      <footer className="p-8 text-center text-slate-400 font-bold text-sm">
+        EduBot © 2026 - Sahabat Pintar Kelas 5 SD
+      </footer>
     </div>
   );
 }
