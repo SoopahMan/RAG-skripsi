@@ -630,7 +630,7 @@ const handleFeedback = (messageId, feedback) => {
              <Star className="w-16 h-16 text-white fill-current" />
           </div>
           <div className="text-center md:text-left flex-1">
-            <h2 className="text-3xl font-black mb-2">Sistem Pengumpulan Data Skripsi</h2>
+            <h2 className="text-3xl font-black mb-2">Latihan Soal</h2>
             <p className="text-slate-500 font-bold">Silakan pilih mata pelajaran di bawah ini. Pastikan membaca petunjuk bacaan dan memanfaatkan asisten pintar AI dengan baik sebelum mulai.</p>
           </div>
         </div>
