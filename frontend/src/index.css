@@ -1,22 +1,25 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Quicksand:wght@500;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   --font-sans: "Quicksand", "Inter", ui-sans-serif, system-ui, sans-serif;
   
-  --color-brand-primary: #FF6B6B; /* Coral Red - Ceria */
-  --color-brand-secondary: #FFD93D; /* Sunshine Yellow - Menarik */
-  --color-brand-accent: #6BCB77; /* Fresh Green - Penyeimbang */
+  /* Konfigurasi warna khusus Tailwind v4 (tanpa kata -color-) */
+  --color-brand-primary: #FF6B6B;     /* Coral Red */
+  --color-brand-secondary: #FFD93D;   /* Sunshine Yellow */
+  --color-brand-accent: #6BCB77;      /* Fresh Green */
   --color-brand-soft: #F9F9F9;
-  --color-brand-blue: #4D96FF; /* Sky Blue - Informatif */
+  --color-brand-blue: #4D96FF;        /* Sky Blue */
 }
 
+/* Base Style */
 body {
   @apply bg-white text-slate-800 font-sans;
 }
 
+/* Custom Components menggunakan utilitas Tailwind v4 */
 .chat-bubble-user {
-  @apply bg-brand-blue text-white rounded-3xl rounded-tr-none px-5 py-4 shadow-lg;
+  @apply bg-[--color-brand-blue] text-white rounded-3xl rounded-tr-none px-5 py-4 shadow-lg;
 }
 
 .chat-bubble-bot {
@@ -24,13 +27,13 @@ body {
 }
 
 .btn-primary {
-  @apply bg-brand-primary hover:bg-rose-500 text-white font-black py-4 px-8 rounded-3xl transition-all active:scale-95 shadow-[0_4px_0_rgb(190,40,40)] hover:shadow-none hover:translate-y-1;
+  @apply bg-[--color-brand-primary] hover:bg-rose-500 text-white font-black py-4 px-8 rounded-3xl transition-all active:scale-95 shadow-[0_4px_0_rgb(190,40,40)] hover:shadow-none hover:translate-y-1;
 }
 
 .btn-secondary {
-  @apply bg-brand-blue hover:bg-blue-600 text-white font-black py-4 px-8 rounded-3xl transition-all active:scale-95 shadow-[0_4px_0_rgb(30,80,180)] hover:shadow-none hover:translate-y-1;
+  @apply bg-[--color-brand-blue] hover:bg-blue-600 text-white font-black py-4 px-8 rounded-3xl transition-all active:scale-95 shadow-[0_4px_0_rgb(30,80,180)] hover:shadow-none hover:translate-y-1;
 }
 
 .card-menu {
-  @apply bg-white border-4 border-slate-100 p-8 rounded-[40px] shadow-xl transition-all hover:border-brand-primary hover:-translate-y-2 cursor-pointer;
+  @apply bg-white border-4 border-slate-100 p-8 rounded-[40px] shadow-xl transition-all hover:border-[--color-brand-primary] hover:-translate-y-2 cursor-pointer;
 }

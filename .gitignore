@@ -13,3 +13,14 @@ coverage/
 *.pyc
 /backend/core/auth/__pycache__
 /backend/config/__pycache__
+/backend/config/__pycache__
+*.pyc
+backend/schema/__pycache__/auth_schema.cpython-312.pyc
+backend/model/__pycache__/auth_model.cpython-312.pyc
+backend/endpoint/__pycache__/chat.cpython-312.pyc
+backend/endpoint/__pycache__/auth.cpython-312.pyc
+backend/core/auth/__pycache__/auth.cpython-312.pyc
+backend/core/__pycache__/vector_database.cpython-312.pyc
+backend/core/__pycache__/rag.cpython-312.pyc
+backend/core/__pycache__/ingestion.cpython-312.pyc
+backend/config/__pycache__/database.cpython-312.pyc
