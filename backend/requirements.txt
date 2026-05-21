@@ -1,6 +1,9 @@
 fastapi
 python-dotenv
 python-multipart
+pypdf
+ragas
+pandas
 
 # LangChain ecosystem
 langchain

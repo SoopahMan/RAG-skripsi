@@ -1,13 +1,21 @@
 const API = import.meta.env.VITE_API_URL;
 
-// Kirim pertanyaan ke FastAPI
-export async function chatWithMentora(question) {
+export async function chatWithMentora(
+  question,
+  chatHistory = [],
+  feedbackMode = "belum_paham"
+) {
+
   const res = await fetch(`${API}/ask`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ question })
+    body: JSON.stringify({
+      question,
+      chat_history: chatHistory,
+      feedback_mode: feedbackMode
+    })
   });
 
   if (!res.ok) {
@@ -17,11 +25,17 @@ export async function chatWithMentora(question) {
 
   const data = await res.json();
 
-  // mapping ke format frontend kamu
   return {
     content: data.answer,
     confidenceScore: data.confidence_score,
-    source: data.source_found ? "Buku Pembelajaran" : "Tidak ditemukan",
-    learningStatus: data.source_found ? "Valid" : "Tidak ditemukan di konteks"
+    source: data.source_found
+      ? "Buku Pembelajaran"
+      : "Tidak ditemukan",
+
+    learningStatus: data.source_found
+      ? "Valid"
+      : "Tidak ditemukan di konteks",
+
+    feedbackMode: data.feedback_mode
   };
 }

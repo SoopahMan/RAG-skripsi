@@ -43,7 +43,7 @@ Base.metadata.create_all(bind=engine)
 
 origins = [
     "http://localhost",
-    "http://localhost:3001",
+    "http://localhost:3000",
 ]
 
 app.add_middleware(

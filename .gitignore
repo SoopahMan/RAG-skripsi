@@ -8,3 +8,4 @@ coverage/
 !.env.example
 /backend/chroma_db
 /backend/__pycache__
+.vscode/settings.json

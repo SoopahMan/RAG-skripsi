@@ -4,13 +4,14 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Send, Search, FileText, Video, HelpCircle, FileStack } from 'lucide-react';
-// import { chatWithMentora, parseMentoraResponse } from '../services/mentoraService';
 import { chatWithMentora } from '../services/api'
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 
 export default function ChatPanel({ module, viewMode = 'read' }) {
   const [messages, setMessages] = useState([]);
+  const [feedbackMode, setFeedbackMode] = useState("belum_paham");
+  const [feedbackLocked, setFeedbackLocked] = useState(false);
   
   useEffect(() => {
     const initialText = viewMode === 'practice' 
@@ -38,42 +39,87 @@ export default function ChatPanel({ module, viewMode = 'read' }) {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  if (!input.trim() || isLoading || feedbackLocked) return;
 
-    const userMsg = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date()
+  const userMsg = {
+    id: Date.now().toString(),
+    role: 'user',
+    content: input,
+    timestamp: new Date()
+  };
+
+  setMessages(prev => [...prev, userMsg]);
+  setInput('');
+  setIsLoading(true);
+
+  try {
+    const res = await chatWithMentora(
+      input,
+      messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })),
+      feedbackMode
+    );
+
+    const assistantMsg = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: res.content,
+      confidenceScore: res.confidenceScore,
+      source: res.source,
+      learningStatus: res.learningStatus,
+      timestamp: new Date(),
+
+      // ✅ hanya pesan utama boleh feedback
+      allowFeedback: true,
+      feedbackGiven: false
     };
 
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      const res = await chatWithMentora(input);
-
-      const assistantMsg = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: res.content,
-        confidenceScore: res.confidenceScore,
-        source: res.source,
-        learningStatus: res.learningStatus,
-        timestamp: new Date()
-      };
-      
-      console.log("API RESPONSE:", res);
+        setMessages(prev => [...prev, assistantMsg]);
 
 
-      setMessages(prev => [...prev, assistantMsg]);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
+    // 🔒 lock sampai feedback dipilih
+    setFeedbackLocked(true);
+
+  } catch (error) {
+    console.error(error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const handleFeedback = (messageId, feedback) => {
+
+  // ✅ update mode pembelajaran
+  setFeedbackMode(feedback);
+
+  setMessages(prev =>
+    prev.map(msg =>
+      msg.id === messageId
+        ? { ...msg, feedbackGiven: true }
+        : msg
+    )
+  );
+
+  setFeedbackLocked(false);
+
+  const feedbackReply = {
+    id: Date.now().toString(),
+    role: 'assistant',
+    content:
+      feedback === "belum_paham"
+        ? "Terima kasih ya 😊 Mentora akan membantu pelan-pelan sampai kamu paham."
+        : feedback === "mulai_paham"
+        ? "Wah bagus! 🌟 Sedikit lagi kamu pasti makin mengerti."
+        : "Hebat sekali! 🎉 Terima kasih atas feedbacknya, kamu sudah belajar dengan baik.",
+
+    timestamp: new Date(),
+    allowFeedback: false
   };
+
+  setMessages(prev => [...prev, feedbackReply]);
+};
 
   return (
     <div className="w-[480px] bg-white border-l h-screen flex flex-col shadow-2xl relative z-10">
@@ -110,8 +156,8 @@ export default function ChatPanel({ module, viewMode = 'read' }) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 px-6">
-        <div className="space-y-6 pb-6">
+      <ScrollArea className="w-full flex-1 min-h-0 overflow-y-auto px-6">
+          <div className="space-y-6 pb-6">
           <AnimatePresence>
             {messages.map((m) => (
               <motion.div
@@ -135,29 +181,38 @@ export default function ChatPanel({ module, viewMode = 'read' }) {
                       <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
                     
-                    {m.role === 'assistant' && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex flex-col gap-1.5 text-[10px] items-start">
-                        
-                        {/* Confidence */}
-                        <div className="flex items-center gap-1.5 bg-white/50 px-2 py-0.5 rounded-sm border border-gray-200/50">
-                          <span className="text-gray-400 font-bold uppercase tracking-tighter">Confidence:</span>
-                          <span className="font-mono text-orange-600">
-                            {(m.confidenceScore ?? 0).toFixed(2)}
-                          </span>
-                        </div>
+                      {m.role === 'assistant' &&
+                      m.allowFeedback &&
+                      !m.feedbackGiven && (                    
+                      <div className="mt-4 flex gap-2 flex-wrap">
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => handleFeedback(m.id, "belum_paham")}
+                      >
+                        😵 Belum Paham
+                      </Button>
 
-                        {/* Source
-                        <div className="flex items-center gap-1.5 bg-white/50 px-2 py-0.5 rounded-sm border border-gray-200/50 w-full">
-                          <span className="text-gray-400 font-bold uppercase tracking-tighter shrink-0">Source:</span>
-                          <span className="truncate">
-                            {m.source || "Tidak diketahui"}
-                          </span>
-                        </div> */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => handleFeedback(m.id, "mulai_paham")}
+                      >
+                        🙂 Mulai Paham
+                      </Button>
 
-                        
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => handleFeedback(m.id, "paham")}
+                      >
+                        😎 Sudah Paham
+                      </Button>
 
-                      </div>
                     </div>
                   )}
                   </div>
@@ -187,22 +242,26 @@ export default function ChatPanel({ module, viewMode = 'read' }) {
       <div className="p-6 bg-white shrink-0">
         <div className="relative group">
           <Input
-            placeholder="I'm available 24/7 for you, ask me anything..."
+            placeholder={
+              feedbackLocked
+                ? "Pilih feedback dulu sebelum lanjut bertanya..."
+                : "I'm available 24/7 for you, ask me anything..."
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            disabled={isLoading}
-            className="pr-12 h-14 rounded-xl border-gray-100 bg-gray-50 focus-visible:ring-orange-500 focus-visible:bg-white transition-all text-sm"
+            disabled={isLoading || feedbackLocked}
+            className="pr-12 h-14 rounded-xl border-gray-100 bg-gray-50"
           />
           <Button 
             size="icon" 
             onClick={handleSend}
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || !input.trim() || feedbackLocked}
             className="absolute right-2 top-2 h-10 w-10 bg-orange-500 hover:bg-orange-600 rounded-lg shadow-lg shadow-orange-200 transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
           </Button>
-        </div>
+        </div>  
         <div className="flex justify-center mt-3">
           <p className="text-[9px] text-gray-300 font-medium uppercase tracking-[0.2em]">Mentora AI Engine 2026</p>
         </div>
