@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from schema.ujian import TestResultCreate, TestResultResponse
-from model.ujian import TestResult
-from config.database import get_db
-from core.auth.auth import get_current_user
+from app.schema.ujian import TestResultCreate, TestResultResponse
+from app.model.ujian import TestResult
+from app.config.database import get_db
+from app.core.auth.auth import get_current_user
 
 router = APIRouter()
 

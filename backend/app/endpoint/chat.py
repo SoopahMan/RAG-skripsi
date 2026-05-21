@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
-from core.ingestion import ingest_pdf_to_chroma
-from core.rag import get_rag_response, ChatMessage
+from app.core.ingestion import ingest_pdf_to_chroma
+from app.core.rag import get_rag_response, ChatMessage
 from pydantic import BaseModel
 from typing import Literal
 import shutil

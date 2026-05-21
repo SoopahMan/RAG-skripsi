@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text
-from backend.model.user import Base
+from model.user import Base
 
 class Materi(Base):
     __tablename__ = "materi"

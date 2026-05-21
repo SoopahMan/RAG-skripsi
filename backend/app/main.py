@@ -3,12 +3,13 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-from config.database import SessionLocal
-from core.auth.auth import hash_password
-from model.auth_model import User
-from config.database import Base, engine
+from app.config.database import SessionLocal
+from app.core.auth.auth import hash_password
+from app.endpoint import auth, chat
+from app.model.auth_model import User
+from app.config.database import Base, engine
 
-from endpoint import chat, auth, ujian
+from app.endpoint import ujian
 from contextlib import asynccontextmanager
 
 

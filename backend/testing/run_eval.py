@@ -28,7 +28,7 @@ from ragas.llms import LangchainLLMWrapper
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from core.rag import get_rag_response, ChatMessage
+from backend.app.core.rag import get_rag_response, ChatMessage
 
 from eval_dataset import (
     EVAL_DATASET,
