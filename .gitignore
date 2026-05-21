@@ -10,3 +10,6 @@ coverage/
 .vscode/settings.json
 *.pyc
 *.pyc
+*.pyc
+/backend/core/auth/__pycache__
+/backend/config/__pycache__

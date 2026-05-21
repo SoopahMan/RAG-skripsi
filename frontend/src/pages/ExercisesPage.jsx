@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Star, Award, Home, ClipboardList, CheckCircle2, Timer, Send } from 'lucide-react';
 import { getToken } from '../services/auth'; 
+import ReactMarkdown from 'react-markdown';
+import { chatWithMentora } from '../services/api';
+import { Bot, User, MessageSquare, Sparkles, HelpCircle, FileText, AlertCircle } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL;
 
 export default function ExercisesPage() {
+  
   const navigate = useNavigate();
 
   // State Alur Utama
@@ -21,12 +25,7 @@ export default function ExercisesPage() {
   const [timeLeft, setTimeLeft] = useState(300);
   const [hasReadEnough, setHasReadEnough] = useState(false); // Untuk kunci tombol Mulai Ujian sementara
 
-  // State untuk Chatbot (Hanya muncul di Post-Test)
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    { sender: 'bot', text: 'Halo! Aku asisten pintar AI-mu. Silakan baca materi di sebelah kiri, dan tanyakan apa saja padaku jika ada materi yang belum kamu pahami sebelum memulai Post-Test! 🚀' }
-  ]);
-  const [isBotTyping, setIsBotTyping] = useState(false);
+  
 
   // Data Bank Soal IPAS Sesuai Request Lengkap dengan Kunci Jawaban
   const latihanSoal = [
@@ -151,38 +150,89 @@ export default function ExercisesPage() {
     }
   };
 
+
+  // ================= CHATBOT AI =================
+  const [chatInput, setChatInput] = useState('');
+  const [isBotTyping, setIsBotTyping] = useState(false);
+
+  const [feedbackMode, setFeedbackMode] = useState("belum_paham");
+  const [feedbackLocked, setFeedbackLocked] = useState(false);
+
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: '1',
+      sender: 'bot',
+      text: 'Halo! Aku EduBot AI 🌿. Kamu bisa bertanya tentang flora, fauna, wilayah Asiatis, Australis, Wallacea, atau materi IPAS lainnya sebelum memulai Post-Test.',
+      allowFeedback: false
+    }
+  ]);
   // Logika Simulasi Chatbot AI untuk Post-Test
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    
-    const userMsg = { sender: 'user', text: chatInput };
-    setChatMessages((prev) => [...prev, userMsg]);
-    setChatInput('');
-    setIsBotTyping(true);
+  const handleSendMessage = async () => {
+  if (!chatInput.trim() || isBotTyping || feedbackLocked) return;
 
-    // Simulasi Jawaban Cerdas AI berdasarkan Kata Kunci Narasi
-    setTimeout(() => {
-      let botText = "Pertanyaan bagus! Pastikan kamu membaca teks di bagian kiri ya. Ada hal lain yang mau ditanyakan?";
-      const inputLower = chatInput.toLowerCase();
-
-      if (inputLower.includes('asiatis') || inputLower.includes('barat')) {
-        botText = "Tipe Asiatis itu wilayah barat (Sumatra, Jawa, Bali, Kalimantan). Ciri utamanya punya hutan lebat heterogen, curah hujan tinggi, dan hewannya besar-besar seperti gajah dan badak bercula satu!";
-      } else if (inputLower.includes('peralihan') || inputLower.includes('tengah') || inputLower.includes('wallacea')) {
-        botText = "Wilayah Tengah/Peralihan (Kawasan Wallacea) meliputi Sulawesi dan Nusa Tenggara. Iklimnya lebih kering, banyak sabana, dan hewannya unik (endemik) seperti anoa, babi rusa, dan komodo!";
-      } else if (inputLower.includes('australis') || inputLower.includes('sahul') || inputLower.includes('timur')) {
-        botText = "Tipe Australis (Tanah Sahul) itu wilayah timur seperti Papua dan Kepulauan Aru. Pohon khasnya adalah sagu, sedangkan faunanya mirip Australia seperti burung cenderawasih dan kanguru!";
-      } else if (inputLower.includes('wallace') || inputLower.includes('weber')) {
-        botText = "Garis Wallace membatasi bagian Barat dan Tengah. Sedangkan Garis Weber membatasi bagian Tengah dan Timur Indonesia!";
-      } else if (inputLower.includes('manusia') || inputLower.includes('rusak') || inputLower.includes('punah')) {
-        botText = "Flora-fauna kita berkurang karena ulah manusia, contohnya penebangan liar dan perburuan liar. Makanya kita wajib menjaga sungai dari sampah/detergen dan melakukan reboisasi hutan!";
-      } else if (inputLower.includes('sungai') || inputLower.includes('sampah')) {
-        botText = "Benar sekali! Kita tidak boleh membuang sampah atau limbah detergen ke sungai agar ekosistem air terlindungi dan alam tidak rusak.";
-      }
-
-      setChatMessages((prev) => [...prev, { sender: 'bot', text: botText }]);
-      setIsBotTyping(false);
-    }, 1000);
+  const userMsg = {
+    id: Date.now().toString(),
+    sender: 'user',
+    text: chatInput
   };
+
+  const currentInput = chatInput;
+
+  setChatMessages(prev => [...prev, userMsg]);
+  setChatInput('');
+  setIsBotTyping(true);
+
+  try {
+    const res = await chatWithMentora(
+      currentInput,
+      chatMessages.map(msg => ({
+        role: msg.sender === 'bot' ? 'assistant' : 'user',
+        content: msg.text
+      })),
+      feedbackMode
+    );
+
+    const botMsg = {
+      id: (Date.now() + 1).toString(),
+      sender: 'bot',
+      text: res.content,
+      allowFeedback: true,
+      feedbackGiven: false
+    };
+
+    setChatMessages(prev => [...prev, botMsg]);
+
+    // lock chat sampai feedback dipilih
+    setFeedbackLocked(true);
+
+  } catch (error) {
+    console.error(error);
+
+    setChatMessages(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        sender: 'bot',
+        text: 'Waduh 😢 koneksi ke AI gagal. Coba lagi sebentar ya.'
+      }
+    ]);
+  } finally {
+    setIsBotTyping(false);
+  }
+};
+const handleFeedback = (messageId, feedback) => {
+  setFeedbackMode(feedback);
+
+  setChatMessages(prev =>
+    prev.map(msg =>
+      msg.id === messageId
+        ? { ...msg, feedbackGiven: true }
+        : msg
+    )
+  );
+
+  setFeedbackLocked(false);
+};
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -271,33 +321,178 @@ export default function ExercisesPage() {
               </div>
               
               {/* Log Pesan Chat */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50 text-sm">
-                {chatMessages.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 rounded-2xl font-bold leading-relaxed ${msg.sender === 'user' ? 'bg-brand-primary text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none shadow-sm'}`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                {isBotTyping && (
-                  <div className="text-xs text-slate-400 font-bold animate-pulse px-2">Asisten AI sedang berpikir...</div>
-                )}
-              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
 
-              {/* Input Chat */}
-              <div className="p-3 bg-white border-t rounded-b-[28px] flex items-center space-x-2">
-                <input 
-                  type="text" 
+              {chatMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex items-start gap-3 ${
+                    msg.sender === 'user'
+                      ? 'justify-end'
+                      : 'justify-start'
+                  }`}
+                >
+
+                  {/* Avatar Bot */}
+                  {msg.sender === 'bot' && (
+                    <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0">
+                      <Bot className="w-5 h-5" />
+                    </div>
+                  )}
+
+                  {/* Bubble */}
+                  <div
+                    className={`max-w-[85%] rounded-[24px] p-5 shadow-sm ${
+                      msg.sender === 'user'
+                        ? 'bg-blue-600 text-white rounded-tr-none'
+                        : 'bg-white text-slate-800 border border-slate-200 rounded-tl-none'
+                    }`}
+                  >
+
+                    {/* Header kecil */}
+                    <div
+                      className={`text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1 ${
+                        msg.sender === 'user'
+                          ? 'text-blue-200'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {msg.sender === 'user' ? (
+                        <>
+                          <User className="w-3 h-3" />
+                          <span>Siswa</span>
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-3 h-3 text-blue-500" />
+                          <span>EduBot AI</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Markdown */}
+                    <div
+                      className={`prose max-w-none ${
+                        msg.sender === 'user'
+                          ? 'prose-invert text-white'
+                          : 'prose-slate text-slate-700'
+                      }`}
+                    >
+                      <ReactMarkdown>
+                        {msg.text}
+                      </ReactMarkdown>
+                    </div>
+
+                    {/* Feedback */}
+                    {msg.sender === 'bot' &&
+                      msg.allowFeedback &&
+                      !msg.feedbackGiven && (
+                        <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
+
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-indigo-500" />
+                            Pilih respons belajar:
+                          </p>
+
+                          <div className="flex flex-col gap-2">
+
+                            <button
+                              onClick={() =>
+                                handleFeedback(msg.id, 'belum_paham')
+                              }
+                              className="flex items-center gap-2 bg-slate-50 hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-300 rounded-2xl px-4 py-3 text-sm font-black transition-all"
+                            >
+                              <HelpCircle className="w-4 h-4" />
+                              😵 Aku ingin pertanyaan
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleFeedback(msg.id, 'mulai_paham')
+                              }
+                              className="flex items-center gap-2 bg-slate-50 hover:bg-amber-50 border-2 border-slate-200 hover:border-amber-300 rounded-2xl px-4 py-3 text-sm font-black transition-all"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              🙂 Beri pertanyaan dan penjelasan
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleFeedback(msg.id, 'paham')
+                              }
+                              className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 border-2 border-slate-200 hover:border-emerald-300 rounded-2xl px-4 py-3 text-sm font-black transition-all"
+                            >
+                              <FileText className="w-4 h-4" />
+                              😎 Kasih aku penjelasan dong
+                            </button>
+
+                          </div>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Avatar User */}
+                  {msg.sender === 'user' && (
+                    <div className="w-10 h-10 bg-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-sm shrink-0 border border-slate-300">
+                      <User className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Typing */}
+              {isBotTyping && (
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0">
+                    <Bot className="w-5 h-5" />
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-[24px] rounded-tl-none p-5 shadow-sm flex items-center space-x-1">
+                    <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-bounce" />
+                    <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-3 bg-white border-t rounded-b-[28px] space-y-3">
+              {feedbackLocked && (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-2 flex items-center gap-2 text-amber-800 text-xs font-bold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Pilih feedback jawaban AI terlebih dahulu untuk melanjutkan chat.
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Tanyakan materi flora/fauna di sini..." 
-                  className="flex-1 border-2 border-slate-100 bg-slate-50 focus:bg-white rounded-xl py-3 px-4 outline-none font-bold text-slate-700 focus:border-brand-blue text-sm transition-all"
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && handleSendMessage()
+                  }
+                  disabled={isBotTyping || feedbackLocked}
+                  placeholder={
+                    feedbackLocked
+                      ? 'Pilih feedback dulu...'
+                      : 'Tanyakan materi flora/fauna di sini...'
+                  }
+                  className="flex-1 border-2 border-slate-100 bg-slate-50 focus:bg-white rounded-xl py-3 px-4 outline-none font-bold text-slate-700 focus:border-brand-blue text-sm transition-all disabled:opacity-60"
                 />
-                <button onClick={handleSendMessage} className="p-3 bg-brand-blue text-white rounded-xl hover:opacity-90 active:scale-95 transition-all">
+
+                <button
+                  onClick={handleSendMessage}
+                  disabled={
+                    isBotTyping ||
+                    !chatInput.trim() ||
+                    feedbackLocked
+                  }
+                  className="p-3 bg-brand-blue text-white rounded-xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                >
                   <Send className="w-5 h-5" />
                 </button>
               </div>
+            </div>
             </div>
           )}
         </main>
