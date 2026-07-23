@@ -3,27 +3,22 @@ socratic_metrics.py
 -------------------
 Custom RAGAS-compatible metrics untuk tutor Socratic IPA SD.
 
-Masalah dengan RAGAS standar:
-  - Answer Correctness → akan MENGHUKUM jawaban Socratic karena tidak
-    langsung menjawab pertanyaan, padahal itu memang tujuannya.
-  - Answer Relevancy  → sama, respons Socratic penuh pertanyaan balik,
-    bukan penjelasan, sehingga skor akan rendah secara tidak adil.
-
-Solusi: 4 metrik custom yang sadar konteks Socratic + 2 metrik RAGAS
-standar yang tetap relevan (faithfulness, context_recall).
+Kompatibel dengan RAGAS >= 0.2 (API baru: llm_factory, required_columns property).
 
 METRIK CUSTOM:
-  1. SocraticAdherence     — apakah respons TIDAK membocorkan jawaban final
-                             pada mode belum_paham?
-  2. ModeConsistency       — apakah gaya respons sesuai feedback_mode?
-  3. QuestionPresence      — apakah ada pertanyaan di akhir respons
-                             (wajib untuk belum_paham & mulai_paham)?
-  4. ForbiddenLeakage      — apakah respons BEBAS dari kata kunci jawaban
-                             yang seharusnya tidak diberikan?
+  1. SocraticAdherence        — tidak bocor jawaban (belum_paham)
+  2. ModeConsistency          — gaya sesuai feedback_mode
+  3. QuestionPresence         — ada/tidak pertanyaan sesuai mode
+  4. ForbiddenLeakage         — keyword jawaban tidak bocor (regex)
+  5. AntiHallucinationCompliance — AI mengakui OOC, tidak mengarang
 
-METRIK RAGAS STANDAR (tetap dipakai):
-  5. faithfulness          — apakah klaim dalam respons didukung konteks?
-  6. context_recall        — apakah konteks mencakup ground_truth?
+CATATAN _required_columns:
+  RAGAS >= 0.2 mengubah required_columns dari dict[str, set]
+  menjadi property yang mengembalikan set[MetricType].
+  Untuk custom metric yang hanya butuh user_input + response,
+  cukup override required_columns sebagai property yang
+  mengembalikan set kosong — validasi kolom dilewati, dan
+  akses sample.user_input / sample.response tetap berfungsi.
 """
 
 import re
@@ -31,61 +26,100 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
-from ragas.metrics.base import MetricWithLLM, SingleTurnMetric
+from openai import AsyncOpenAI
+from ragas.metrics.base import SingleTurnMetric
 from ragas.dataset_schema import SingleTurnSample
 from dotenv import load_dotenv
 
 load_dotenv()
 
+_aclient = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 # =========================
-# LLM JUDGE (shared)
+# UTIL: call LLM judge (langsung via openai async, bypass ragas wrapper)
 # =========================
-def get_judge_llm() -> ChatOpenAI:
-    return ChatOpenAI(
+async def _llm_judge(prompt: str) -> str:
+    response = await _aclient.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0,
-        api_key=os.getenv("OPENAI_API_KEY"),
+        messages=[{"role": "user", "content": prompt}],
     )
+    return response.choices[0].message.content.strip()
 
 
 # =========================
-# UTIL: call LLM judge
-# =========================
-async def _llm_judge(prompt: str, llm: ChatOpenAI) -> str:
-    from langchain_core.messages import HumanMessage
-    response = await llm.ainvoke([HumanMessage(content=prompt)])
-    return response.content.strip()
-
-
-# =========================
-# 1. SocraticAdherence
-# Mengukur apakah respons TIDAK membocorkan jawaban langsung.
-# Hanya bermakna pada mode belum_paham.
-# Skor: 1.0 = tidak bocor, 0.0 = bocor jawaban.
+# BASE: custom metric tanpa _required_columns dict lama
 # =========================
 @dataclass
-class SocraticAdherence(MetricWithLLM, SingleTurnMetric):
-    name: str = "socratic_adherence"
-    _required_columns: dict = field(default_factory=lambda: {
-        "single_turn": {"response", "reference"}   # reference = ground_truth
-    })
+class BaseSocraticMetric(SingleTurnMetric):
+    """
+    Override required_columns sebagai property yang mengembalikan set kosong
+    agar RAGAS tidak memvalidasi kolom secara ketat.
+    Metrik tetap bisa akses sample.user_input, .response, .reference.
+    """
+    name: str = "base_socratic"
+
+    @property
+    def required_columns(self):   # noqa: D401
+        return set()              # skip ragas column validation
+
+    def init(self, llm_factory: Optional[object] = None):
+        """
+        Optional initializer called by RAGAS. Store llm_factory if provided
+        so metrics can use shared LLM client if needed.
+        """
+        self.llm_factory = llm_factory
+        return None
 
     async def _single_turn_ascore(
         self,
         sample: SingleTurnSample,
         callbacks=None,
     ) -> float:
-        response    = sample.response or ""
+        raise NotImplementedError
+
+
+# =========================
+# UTIL: ekstrak feedback_mode dari augmented user_input
+# =========================
+def _extract_mode(user_input: str) -> str:
+    m = re.search(r"\[MODE:([\w_]+)\]", user_input)
+    return m.group(1) if m else "belum_paham"
+
+
+# =========================
+# 1. SocraticAdherence
+# Apakah respons TIDAK membocorkan jawaban final?
+# Skor 1.0 = aman, 0.0 = bocor.
+# Hanya bermakna untuk mode belum_paham.
+# =========================
+@dataclass
+class SocraticAdherence(BaseSocraticMetric):
+    name: str = "socratic_adherence"
+
+    async def _single_turn_ascore(
+        self,
+        sample: SingleTurnSample,
+        callbacks=None,
+    ) -> float:
+        mode = _extract_mode(sample.user_input or "")
+        if mode != "belum_paham":
+            return 1.0   # tidak relevan untuk mode lain
+
+        response     = sample.response  or ""
         ground_truth = sample.reference or ""
 
+        if not response or not ground_truth:
+            return 0.5
+
         prompt = f"""
-Kamu adalah evaluator untuk sistem tutor Socratic anak SD.
+Kamu adalah evaluator sistem tutor Socratic untuk siswa SD.
 
 TUGAS:
-Periksa apakah RESPONS di bawah ini membocorkan jawaban final yang ada di GROUND TRUTH.
-Dalam metode Socratic, tutor TIDAK BOLEH langsung memberikan jawaban.
+Periksa apakah RESPONS di bawah ini membocorkan jawaban final dari GROUND TRUTH.
+Dalam metode Socratic, tutor TIDAK BOLEH langsung memberikan jawaban — hanya boleh
+memberi petunjuk dan pertanyaan pemandu.
 
 GROUND TRUTH (jawaban yang seharusnya TIDAK langsung diberikan):
 {ground_truth}
@@ -93,66 +127,61 @@ GROUND TRUTH (jawaban yang seharusnya TIDAK langsung diberikan):
 RESPONS TUTOR:
 {response}
 
-KRITERIA BOCOR (jawaban dianggap bocor jika):
+KRITERIA BOCOR:
 - Menyebutkan fakta utama dari ground_truth secara eksplisit
-- Memberikan penjelasan lengkap yang seharusnya siswa temukan sendiri
-- Tidak ada pertanyaan balik kepada siswa
+- Memberikan penjelasan lengkap tanpa pertanyaan balik
+- Siswa tidak perlu berpikir lagi setelah membaca respons ini
 
 Jawab HANYA dengan format:
 VERDICT: [TIDAK_BOCOR / BOCOR]
 ALASAN: [satu kalimat singkat]
 """
-        result = await _llm_judge(prompt, self.llm)
+        result = await _llm_judge(prompt)
         return 1.0 if "TIDAK_BOCOR" in result.upper() else 0.0
 
 
 # =========================
 # 2. ModeConsistency
-# Mengukur apakah gaya respons sesuai feedback_mode.
-# Skor: 1.0 = konsisten, 0.5 = sebagian, 0.0 = tidak konsisten.
+# Apakah gaya respons sesuai feedback_mode?
+# Skor: 1.0 / 0.5 / 0.0
 # =========================
 @dataclass
-class ModeConsistency(MetricWithLLM, SingleTurnMetric):
+class ModeConsistency(BaseSocraticMetric):
     name: str = "mode_consistency"
-    _required_columns: dict = field(default_factory=lambda: {
-        "single_turn": {"response", "user_input"}
-    })
 
     async def _single_turn_ascore(
         self,
         sample: SingleTurnSample,
         callbacks=None,
     ) -> float:
-        response     = sample.response or ""
-        # feedback_mode disisipkan di user_input oleh runner
-        user_input   = sample.user_input or ""
-        feedback_mode = "belum_paham"
-        for mode in ["belum_paham", "mulai_paham", "paham"]:
-            if mode in user_input:
-                feedback_mode = mode
-                break
+        user_input = sample.user_input or ""
+        response   = sample.response   or ""
+        mode       = _extract_mode(user_input)
 
-        mode_descriptions = {
+        if not response:
+            return 0.0
+
+        mode_expectations = {
             "belum_paham": (
                 "Tutor HANYA boleh mengajukan pertanyaan dan memberi petunjuk kecil. "
                 "DILARANG memberikan penjelasan atau jawaban langsung."
             ),
             "mulai_paham": (
-                "Tutor boleh menjelaskan 1-2 konsep kunci SECARA SINGKAT, "
-                "lalu wajib mengajukan SATU pertanyaan konfirmasi."
+                "Tutor boleh menjelaskan 1–2 konsep kunci secara singkat, "
+                "lalu WAJIB mengajukan satu pertanyaan konfirmasi di akhir."
             ),
             "paham": (
                 "Tutor wajib memberikan APRESIASI tulus dan penjelasan LENGKAP. "
-                "DILARANG mengajukan pertanyaan lagi."
+                "DILARANG mengajukan pertanyaan baru."
             ),
         }
 
-        expectation = mode_descriptions.get(feedback_mode, "")
+        expectation = mode_expectations.get(mode, "")
 
         prompt = f"""
-Kamu adalah evaluator kualitas tutor AI untuk anak SD.
+Kamu adalah evaluator kualitas tutor AI untuk siswa SD.
 
-FEEDBACK MODE: {feedback_mode}
+FEEDBACK MODE: {mode}
 EKSPEKTASI RESPONS:
 {expectation}
 
@@ -168,79 +197,66 @@ Jawab HANYA dengan format:
 SCORE: [1.0 / 0.5 / 0.0]
 ALASAN: [satu kalimat singkat]
 """
-        result = await _llm_judge(prompt, self.llm)
+        result = await _llm_judge(prompt)
         match  = re.search(r"SCORE:\s*([\d.]+)", result)
         return float(match.group(1)) if match else 0.0
 
 
 # =========================
 # 3. QuestionPresence
-# Mengukur apakah ada pertanyaan di akhir respons.
-# Wajib untuk belum_paham dan mulai_paham.
-# Harus TIDAK ada untuk mode paham.
-# Skor: 1.0 = sesuai ekspektasi, 0.0 = tidak sesuai.
+# Ada/tidak pertanyaan → sesuai ekspektasi mode?
+# belum_paham & mulai_paham: HARUS ada pertanyaan → 1.0
+# paham: TIDAK BOLEH ada pertanyaan → 1.0
 # =========================
 @dataclass
-class QuestionPresence(MetricWithLLM, SingleTurnMetric):
+class QuestionPresence(BaseSocraticMetric):
     name: str = "question_presence"
-    _required_columns: dict = field(default_factory=lambda: {
-        "single_turn": {"response", "user_input"}
-    })
 
     async def _single_turn_ascore(
         self,
         sample: SingleTurnSample,
         callbacks=None,
     ) -> float:
-        response    = sample.response or ""
-        user_input  = sample.user_input or ""
-        feedback_mode = "belum_paham"
-        for mode in ["belum_paham", "mulai_paham", "paham"]:
-            if mode in user_input:
-                feedback_mode = mode
-                break
+        user_input = sample.user_input or ""
+        response   = sample.response   or ""
+        mode       = _extract_mode(user_input)
 
-        # Deteksi pertanyaan: kalimat yang diakhiri "?" atau mengandung kata tanya
         has_question = bool(re.search(
             r"\?|apakah|apa yang|mengapa|bagaimana|coba pikirkan|menurutmu|kira-kira",
             response,
             re.IGNORECASE,
         ))
 
-        if feedback_mode in ("belum_paham", "mulai_paham"):
-            # Harus ada pertanyaan
+        if mode in ("belum_paham", "mulai_paham"):
             return 1.0 if has_question else 0.0
-        else:
-            # Mode paham: tidak boleh ada pertanyaan
+        else:   # paham
             return 0.0 if has_question else 1.0
 
 
 # =========================
 # 4. ForbiddenLeakage
-# Mengukur seberapa banyak kata kunci jawaban yang "bocor"
-# ke respons pada mode belum_paham.
-# Skor: 1.0 = tidak ada kebocoran, menurun setiap ada kebocoran.
+# Seberapa banyak keyword jawaban bocor ke respons?
+# Skor: 1.0 = tidak ada kebocoran.
 # =========================
 @dataclass
-class ForbiddenLeakage(MetricWithLLM, SingleTurnMetric):
+class ForbiddenLeakage(BaseSocraticMetric):
     name: str = "forbidden_leakage"
-    _required_columns: dict = field(default_factory=lambda: {
-        "single_turn": {"response", "user_input"}
-    })
 
     async def _single_turn_ascore(
         self,
         sample: SingleTurnSample,
         callbacks=None,
     ) -> float:
-        response   = sample.response or ""
         user_input = sample.user_input or ""
+        response   = sample.response   or ""
+        mode       = _extract_mode(user_input)
 
-        # Ekstrak forbidden keywords yang disisipkan runner di user_input
-        # Format: "[FORBIDDEN: kata1|kata2|kata3]"
+        if mode != "belum_paham":
+            return 1.0   # hanya relevan untuk mode ini
+
         forbidden_match = re.search(r"\[FORBIDDEN:(.*?)\]", user_input, re.DOTALL)
         if not forbidden_match:
-            return 1.0  # tidak ada forbidden keywords → tidak relevan
+            return 1.0
 
         forbidden_keywords = [
             kw.strip().lower()
@@ -248,28 +264,22 @@ class ForbiddenLeakage(MetricWithLLM, SingleTurnMetric):
             if kw.strip()
         ]
 
-        response_lower = response.lower()
-        leaked = [kw for kw in forbidden_keywords if kw in response_lower]
-
         if not forbidden_keywords:
             return 1.0
 
-        leak_ratio = len(leaked) / len(forbidden_keywords)
-        return round(1.0 - leak_ratio, 2)
+        response_lower = response.lower()
+        leaked = [kw for kw in forbidden_keywords if kw in response_lower]
+        return round(1.0 - len(leaked) / len(forbidden_keywords), 2)
 
 
 # =========================
 # 5. AntiHallucinationCompliance
-# Khusus untuk pertanyaan di luar konteks (is_out_of_context).
-# Mengukur apakah AI mengakui keterbatasan dan TIDAK mengarang jawaban.
-# Skor: 1.0 = menolak dengan benar, 0.0 = mengarang jawaban.
+# Apakah AI mengakui keterbatasan saat pertanyaan di luar konteks?
+# Hanya aktif untuk item [OUT_OF_CTX:1].
 # =========================
 @dataclass
-class AntiHallucinationCompliance(MetricWithLLM, SingleTurnMetric):
+class AntiHallucinationCompliance(BaseSocraticMetric):
     name: str = "anti_hallucination_compliance"
-    _required_columns: dict = field(default_factory=lambda: {
-        "single_turn": {"response", "user_input"}
-    })
 
     async def _single_turn_ascore(
         self,
@@ -279,26 +289,28 @@ class AntiHallucinationCompliance(MetricWithLLM, SingleTurnMetric):
         user_input = sample.user_input or ""
         response   = sample.response   or ""
 
-        # Hanya relevan untuk item out_of_context
         if "[OUT_OF_CTX:1]" not in user_input:
-            return 1.0   # tidak relevan → skip, skor penuh
+            return 1.0   # tidak relevan → skip
+
+        if not response:
+            return 0.0
 
         prompt = f"""
-Kamu adalah evaluator untuk sistem tutor AI anak SD.
+Kamu adalah evaluator sistem tutor AI untuk siswa SD.
 
-KONTEKS: Pertanyaan siswa berada DI LUAR materi yang tersedia.
+KONTEKS: Pertanyaan siswa BERADA DI LUAR materi yang tersedia.
 Tutor yang baik harus MENGAKUI bahwa materi tidak tersedia,
 bukan mengarang jawaban.
 
 RESPONS TUTOR:
 {response}
 
-Apakah tutor dengan benar mengakui keterbatasan (menyatakan materi tidak tersedia,
-tidak memberikan jawaban yang dikarang, dan tidak berpura-pura tahu)?
+Apakah tutor dengan benar mengakui keterbatasan?
+(menyatakan materi tidak tersedia / tidak memberikan jawaban yang dikarang)
 
 Jawab HANYA dengan format:
 VERDICT: [BENAR / SALAH]
 ALASAN: [satu kalimat singkat]
 """
-        result = await _llm_judge(prompt, self.llm)
+        result = await _llm_judge(prompt)
         return 1.0 if "BENAR" in result.upper() else 0.0

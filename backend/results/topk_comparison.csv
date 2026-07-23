@@ -1,0 +1,4 @@
+top_k,faithfulness,context_recall,hit_rate,mrr
+3,0.025,0.04,0.0,0.0
+5,0.025,0.04,0.0,0.0
+7,0.025,0.06,0.0,0.0

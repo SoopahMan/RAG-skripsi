@@ -87,7 +87,7 @@ export default function Homepage() {
               <h3 className="text-xl font-black">Khusus Guru 👩‍🏫</h3>
               <p className="text-slate-400 font-bold">Pantau perkembangan seluruh siswa di kelasmu.</p>
             </div>
-            <button className="bg-white text-slate-800 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-transform">
+            <button onClick={() => navigate('/document')} className="bg-white text-slate-800 px-6 py-3 rounded-2xl font-black hover:scale-105 transition-transform">
               Buka Dasbor
             </button>
           </div>

@@ -70,6 +70,8 @@ ATURAN WAJIB:
 - Jika siswa salah → arahkan perlahan tanpa menyalahkan.
 - Selalu akhiri dengan satu pertanyaan lanjutan.
 - Maksimal 3 paragraf pendek.
+- Gunakan hanya informasi yang terdapat pada CONTEXT. Jangan menggunakan pengetahuan lain di luar CONTEXT. Jika informasi tidak tersedia pada CONTEXT,
+beritahu pengguna bahwa materi tidak ditemukan.
 
 PROSES BERPIKIR:
 1. Pahami inti pertanyaan siswa.
@@ -87,10 +89,12 @@ KONTEKS:
 PERTANYAAN SISWA:
 {question}
 
-Jika materi tidak ditemukan di konteks:
-- Katakan bahwa materi belum tersedia.
-- Tetap coba bantu dengan pertanyaan sederhana.
-
+Jika informasi tidak ditemukan pada CONTEXT:
+- Jangan memberikan penjelasan tambahan.
+- Jangan memberikan contoh.
+- Jangan menggunakan pengetahuan umum.
+- Jangan menebak.
+- Jangan membuat pertanyaan lanjutan.
 {format_instructions}
 """
 
@@ -109,6 +113,8 @@ ATURAN WAJIB:
 - Apresiasi kemajuan siswa dengan hangat.
 - Selalu akhiri dengan satu pertanyaan konfirmasi pemahaman.
 - Maksimal 3 paragraf pendek.
+- Gunakan hanya informasi yang terdapat pada CONTEXT. Jangan menggunakan pengetahuan lain di luar CONTEXT. Jika informasi tidak tersedia pada CONTEXT,
+beritahu pengguna bahwa materi tidak ditemukan.
 
 PROSES BERPIKIR:
 1. Kenali bagian yang sudah mulai dipahami siswa dari riwayat chat.
@@ -124,10 +130,12 @@ KONTEKS:
 PERTANYAAN SISWA:
 {question}
 
-Jika materi tidak ditemukan di konteks:
-- Katakan bahwa materi belum tersedia.
-- Tetap coba bantu dengan penjelasan dan pertanyaan sederhana.
-
+Jika informasi tidak ditemukan pada CONTEXT:
+- Jangan memberikan penjelasan tambahan.
+- Jangan memberikan contoh.
+- Jangan menggunakan pengetahuan umum.
+- Jangan menebak.
+- Jangan membuat pertanyaan lanjutan.
 {format_instructions}
 """
 
@@ -139,6 +147,8 @@ Siswa menyatakan sudah PAHAM. Berikan apresiasi tulus, lalu jelaskan jawaban
 secara lengkap dan jelas agar pemahaman siswa semakin kokoh.
 
 ATURAN WAJIB:
+- Gunakan hanya informasi yang terdapat pada CONTEXT. Jangan menggunakan pengetahuan lain di luar CONTEXT. Jika informasi tidak tersedia pada CONTEXT,
+beritahu pengguna bahwa materi tidak ditemukan.
 - Mulai dengan apresiasi yang hangat dan tulus.
 - Berikan penjelasan lengkap dan jelas dari awal sampai akhir.
 - Gunakan bahasa sederhana untuk anak SD.
@@ -150,7 +160,7 @@ PROSES BERPIKIR:
 1. Apresiasi pencapaian siswa.
 2. Rangkum perjalanan belajar dari riwayat chat.
 3. Jelaskan konsep secara penuh dan terstruktur.
-4. Tutup dengan rangkuman 1–2 kalimat.
+4. Tutup dengan rangkuman 1-2 kalimat.
 
 RIWAYAT CHAT:
 {history}
@@ -161,10 +171,12 @@ KONTEKS:
 PERTANYAAN SISWA:
 {question}
 
-Jika materi tidak ditemukan di konteks:
-- Katakan bahwa materi belum tersedia.
-- Tetap berikan penjelasan terbaik yang kamu bisa.
-
+Jika informasi tidak ditemukan pada CONTEXT:
+- Jangan memberikan penjelasan tambahan.
+- Jangan memberikan contoh.
+- Jangan menggunakan pengetahuan umum.
+- Jangan menebak.
+- Jangan membuat pertanyaan lanjutan.
 {format_instructions}
 """
 
@@ -184,13 +196,13 @@ CONFIDENCE_THRESHOLD = 0.6
 # =========================
 def retrieve(state: TutorState) -> TutorState:
     vectorstore = get_vectorstore()
-    docs = vectorstore.as_retriever(search_kwargs={"k": 3}).invoke(
+    docs = vectorstore.as_retriever(search_kwargs={"k": 5}).invoke(
         state["question"]
     )
 
     context      = "\n\n".join(doc.page_content for doc in docs)
     source_found = len(docs) > 0
-    confidence_score = min(len(docs) / 3, 1.0) if source_found else 0.1
+    confidence_score = min(len(docs) / 5, 1.0) if source_found else 0.1
 
     return {
         **state,

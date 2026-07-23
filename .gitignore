@@ -24,3 +24,4 @@ backend/core/__pycache__/vector_database.cpython-312.pyc
 backend/core/__pycache__/rag.cpython-312.pyc
 backend/core/__pycache__/ingestion.cpython-312.pyc
 backend/config/__pycache__/database.cpython-312.pyc
+/backend/testing

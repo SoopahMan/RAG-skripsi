@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import Homepage from './pages/homepages';
 import ChatbotPage from './pages/ChatbotPage';
 import ExercisesPage from './pages/ExercisesPage';
+import DocumentPage from './pages/DocumentPage';
 import RequireAuth from './components/auth/RequireAuth';
 
 const AppRoutes = () => (
@@ -16,6 +17,7 @@ const AppRoutes = () => (
     {/* ADMIN (GURU) */}
     <Route element={<RequireAuth allowedRoles={['admin']} />}> 
       <Route path="/home-admin" element={<Homepage />} />
+      <Route path="/document" element={<DocumentPage />} />
     </Route>
 
     {/* USER (SISWA) */}

@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Integer, String, Float, JSON, Enum as SQLEnum
-from app.config.database import Base
+from config.database import Base
 
 class TestResult(Base):
     __tablename__ = "test_results"

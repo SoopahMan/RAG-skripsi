@@ -10,11 +10,12 @@ export default function ChatbotPage() {
   const navigate = useNavigate();
   const scrollRef = useRef(null);
 
+  // 1. Pesan pertama disetel Socratic Prompting murni tanpa opsi feedback
   const [messages, setMessages] = useState([
     { 
       id: '1', 
       role: 'bot', 
-      text: `Halo! Aku EduBot. Ada yang bisa kubantu hari ini? Kamu bisa menanyakan materi pelajaran atau latihan soal denganku!`,
+      text: `alo! Aku EduBot. Ada yang bisa kubantu hari ini? Kamu bisa menanyakan materi pelajaran atau latihan soal denganku! Jika kamu bingung aku bisa menjawab apa saja, bisa tanyakan materi apa saja yang aku punya yaa.`, 
       allowFeedback: false 
     }
   ]);
@@ -22,73 +23,90 @@ export default function ChatbotPage() {
   const [isLoading, setIsLoading] = useState(false);
   
   // State manajemen feedback
-  const [feedbackMode, setFeedbackMode] = useState("belum_paham");
   const [feedbackLocked, setFeedbackLocked] = useState(false);
+  
+  // State tambahan untuk menyimpan sementara pesan user yang sedang menunggu pemilihan feedback
+  const [pendingUserMessage, setPendingUserMessage] = useState(null);
 
   // Auto scroll ke bawah
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, pendingUserMessage]);
 
-  const sendMessage = async () => {
+  // Langkah 1: Ketika user menekan tombol kirim pesan
+  const sendMessage = () => {
     if (!input.trim() || isLoading || feedbackLocked) return;
 
     const userMsg = { 
       id: Date.now().toString(), 
       role: 'user', 
-      text: input 
+      text: input,
+      requiresFeedbackMode: true, // Menandai bahwa pesan user ini butuh konfirmasi opsi feedback
+      feedbackChosen: false
     };
-    const currentInput = input;
 
+    // Tampilkan pesan user di layar
     setMessages(prev => [...prev, userMsg]);
+    
+    // Simpan teks ke state pending untuk dieksekusi setelah tombol feedback diklik
+    setPendingUserMessage(input);
+    
+    // Reset kolom input & kunci agar tidak mengetik pesan baru dulu
     setInput('');
+    setFeedbackLocked(true);
+  };
+
+  // Langkah 2: Ketika user memilih salah satu tombol feedback di bawah pesannya
+  const handleSelectFeedbackAndReply = async (userMessageId, chosenFeedbackMode) => {
+    if (!pendingUserMessage) return;
+
     setIsLoading(true);
+    
+    // Tandai pada pesan user bahwa opsi feedback sudah dipilih (untuk menyembunyikan tombol)
+    setMessages(prev =>
+      prev.map(msg =>
+        msg.id === userMessageId ? { ...msg, feedbackChosen: true } : msg
+      )
+    );
 
     try {
+      // Ambil seluruh riwayat pesan terkini sebelum memanggil API
+      const historyPayload = messages.map(msg => ({
+        role: msg.role === 'bot' ? 'assistant' : 'user',
+        content: msg.text
+      }));
+
+      // Kirim ke API dengan menyertakan mode feedback yang baru saja diklik siswa
       const res = await chatWithMentora(
-        currentInput,
-        messages.map(msg => ({
-          role: msg.role === 'bot' ? 'assistant' : 'user',
-          content: msg.text
-        })),
-        feedbackMode
+        pendingUserMessage,
+        historyPayload,
+        chosenFeedbackMode
       );
 
       const botMsg = {
         id: (Date.now() + 1).toString(),
         role: 'bot',
         text: res.content,
-        allowFeedback: true, 
-        feedbackGiven: false
+        allowFeedback: false // Jawaban bot sekarang tidak perlu memunculkan tombol lagi
       };
 
+      // Tampilkan balasan bot ke layar
       setMessages(prev => [...prev, botMsg]);
       
-      // Kunci input teks sampai user memberikan feedback
-      setFeedbackLocked(true);
+      // Buka kembali kunci input chat & bersihkan state pending
+      setFeedbackLocked(false);
+      setPendingUserMessage(null);
 
     } catch (error) {
       console.error(error);
       setMessages(prev => [...prev, { 
         id: Date.now().toString(), 
         role: 'bot', 
-        text: "Waduh, koneksinya terputus. Coba kirim pesan lagi ya!" 
+        text: "Waduh, koneksinya terputus. Coba pilih lagi opsi di atas ya!" 
       }]);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFeedback = (messageId, feedback) => {
-    setFeedbackMode(feedback);
-
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === messageId ? { ...msg, feedbackGiven: true } : msg
-      )
-    );
-
-    setFeedbackLocked(false);
   };
 
   return (
@@ -120,83 +138,87 @@ export default function ChatbotPage() {
         {messages.map((msg) => (
           <div 
             key={msg.id} 
-            className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} space-y-2 animate-fadeIn`}
           >
-            {/* Avatar Bot */}
-            {msg.role === 'bot' && (
-              <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0">
-                <Bot className="w-5 h-5" />
-              </div>
-            )}
+            <div className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+              {/* Avatar Bot */}
+              {msg.role === 'bot' && (
+                <div className="w-10 h-10 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0">
+                  <Bot className="w-5 h-5" />
+                </div>
+              )}
 
-            {/* Bubble Chat */}
-            <div className={`max-w-[85%] md:max-w-[75%] rounded-[24px] p-5 shadow-sm transition-all ${
-              msg.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-tr-none font-medium' 
-                : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
-            }`}>
-              {/* Nama Pengirim kecil di dalam bubble */}
-              <div className={`text-[11px] font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${
-                msg.role === 'user' ? 'text-blue-200' : 'text-slate-400'
+              {/* Bubble Chat */}
+              <div className={`max-w-[85%] md:max-w-[75%] rounded-[24px] p-5 shadow-sm transition-all ${
+                msg.role === 'user' 
+                  ? 'bg-blue-600 text-white rounded-tr-none font-medium' 
+                  : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
               }`}>
-                {msg.role === 'user' ? (
-                  <>
-                    <User className="w-3 h-3" />
-                    <span>Kamu (Siswa)</span>
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare className="w-3 h-3 text-blue-500" />
-                    <span>EduBot Smart AI</span>
-                  </>
-                )}
-              </div>
-              
-              {/* Konten Teks Markdown */}
-              <div className={`text-[16px] md:text-[17px] font-semibold leading-relaxed prose max-w-none ${
-                msg.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-700'
-              }`}>
-                <ReactMarkdown>{msg.text}</ReactMarkdown>
+                {/* Nama Pengirim */}
+                <div className={`text-[11px] font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 ${
+                  msg.role === 'user' ? 'text-blue-200' : 'text-slate-400'
+                }`}>
+                  {msg.role === 'user' ? (
+                    <>
+                      <User className="w-3 h-3" />
+                      <span>Kamu (Siswa)</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="w-3 h-3 text-blue-500" />
+                      <span>EduBot Smart AI</span>
+                    </>
+                  )}
+                </div>
+                
+                {/* Teks Konten */}
+                <div className={`text-[16px] md:text-[17px] font-semibold leading-relaxed prose max-w-none ${
+                  msg.role === 'user' ? 'prose-invert text-white' : 'prose-slate text-slate-700'
+                }`}>
+                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                </div>
               </div>
 
-              {/* Box Tombol Feedback Interaktif */}
-              {msg.role === 'bot' && msg.allowFeedback && !msg.feedbackGiven && (
-                <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-indigo-500" /> 
-                    Pilih kelanjutan interaksi belajarmu:
-                  </p>
-                  <div className="flex flex-col sm:flex-row flex-wrap gap-2.5">
-                    <button
-                      onClick={() => handleFeedback(msg.id, "belum_paham")}
-                      className="flex items-center gap-2 bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-2 border-slate-200 hover:border-rose-300 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition-all active:scale-95 text-left"
-                    >
-                      <HelpCircle className="w-4 h-4 shrink-0" />
-                      <span>😵 Aku ingin pertanyaan</span>
-                    </button>
-                    <button
-                      onClick={() => handleFeedback(msg.id, "mulai_paham")}
-                      className="flex items-center gap-2 bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-600 border-2 border-slate-200 hover:border-amber-300 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition-all active:scale-95 text-left"
-                    >
-                      <MessageSquare className="w-4 h-4 shrink-0" />
-                      <span>🙂 Beri pertanyaan dan penjelasan</span>
-                    </button>
-                    <button
-                      onClick={() => handleFeedback(msg.id, "paham")}
-                      className="flex items-center gap-2 bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-600 border-2 border-slate-200 hover:border-emerald-300 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition-all active:scale-95 text-left"
-                    >
-                      <FileText className="w-4 h-4 shrink-0" />
-                      <span>😎 Kasih aku penjelasan dong</span>
-                    </button>
-                  </div>
+              {/* Avatar User */}
+              {msg.role === 'user' && (
+                <div className="w-10 h-10 bg-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-sm shrink-0 border border-slate-300">
+                  <User className="w-5 h-5" />
                 </div>
               )}
             </div>
 
-            {/* Avatar User */}
-            {msg.role === 'user' && (
-              <div className="w-10 h-10 bg-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-sm shrink-0 border border-slate-300">
-                <User className="w-5 h-5" />
+            {/* DIBALIK: Pilihan Feedback Sekarang Muncul di Bawah Chat Siswa Terakhir */}
+            {msg.role === 'user' && msg.requiresFeedbackMode && !msg.feedbackChosen && (
+              <div className="w-full max-w-[85%] md:max-w-[75%] pr-13 mt-2 space-y-3 animate-fadeIn">
+                <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 shadow-inner">
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                    <Sparkles className="w-3 h-3 text-blue-500" /> 
+                    Bagaimana kamu ingin EduBot menanggapi pertanyaanmu di atas?
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleSelectFeedbackAndReply(msg.id, "belum_paham")}
+                      className="flex items-center gap-2 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border-2 border-slate-200 hover:border-rose-300 rounded-xl px-4 py-2.5 text-xs md:text-sm font-black shadow-sm transition-all active:scale-95 text-left"
+                    >
+                      <HelpCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                      <span>😵 Uji aku dengan pertanyaan terkait ini</span>
+                    </button>
+                    <button
+                      onClick={() => handleSelectFeedbackAndReply(msg.id, "mulai_paham")}
+                      className="flex items-center gap-2 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-600 border-2 border-slate-200 hover:border-amber-300 rounded-xl px-4 py-2.5 text-xs md:text-sm font-black shadow-sm transition-all active:scale-95 text-left"
+                    >
+                      <MessageSquare className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>🙂 Beri aku pertanyaan sekaligus penjelasan singkat</span>
+                    </button>
+                    <button
+                      onClick={() => handleSelectFeedbackAndReply(msg.id, "paham")}
+                      className="flex items-center gap-2 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-600 border-2 border-slate-200 hover:border-emerald-300 rounded-xl px-4 py-2.5 text-xs md:text-sm font-black shadow-sm transition-all active:scale-95 text-left"
+                    >
+                      <FileText className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span>😎 Berikan aku materi penjelasan yang lengkap</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -222,11 +244,11 @@ export default function ChatbotPage() {
       <div className="p-4 md:p-6 bg-white border-t border-slate-200/80 shrink-0 shadow-xl rounded-t-[32px]">
         <div className="max-w-4xl mx-auto space-y-3">
           
-          {/* Banner Pemberitahuan Status Feedback (Sangat Bagus untuk Riset Skripsi) */}
+          {/* Banner Status Penguncian */}
           {feedbackLocked && (
             <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-2.5 flex items-center gap-2.5 text-amber-800 text-xs font-bold animate-pulse">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
-              <span>Kolom chat terkunci otomatis. Silakan klik salah satu tombol umpan balik (feedback) di atas terlebih dahulu untuk melanjutkan pengerjaan.</span>
+              <span>Sistem menunggu pilihan belajarmu. Silakan pilih salah satu opsi di bawah pesan terakhirmu agar EduBot bisa menjawab.</span>
             </div>
           )}
 
@@ -239,8 +261,8 @@ export default function ChatbotPage() {
               disabled={isLoading || feedbackLocked}
               placeholder={
                 feedbackLocked
-                  ? "Pilih opsi evaluasi di atas terlebih dahulu..."
-                  : "Ketik di sini untuk bertanya materi atau soal..."
+                  ? "Pilih opsi di atas terlebih dahulu..."
+                  : "Ketik jawaban atau pertanyaanmu di sini..."
               }
               className="flex-1 bg-slate-50 border-2 border-slate-200 focus:bg-white rounded-[24px] px-6 py-4.5 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-base md:text-lg shadow-inner disabled:bg-slate-100 disabled:opacity-60 transition-all placeholder:text-slate-400 text-slate-700"
             />
