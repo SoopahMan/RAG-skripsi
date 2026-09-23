@@ -6,7 +6,10 @@ import {
     FileText,
     Trash2,
     Loader2,
-    CheckCircle
+    CheckCircle,
+    UserPlus,
+    Pencil,
+    Users
 } from "lucide-react";
 
 import axios from "axios";
@@ -30,6 +33,18 @@ export default function DocumentPage() {
     const [statusText, setStatusText] = useState("");
 
     const [taskId, setTaskId] = useState("");
+
+    const [users, setUsers] = useState([]);
+
+    const [showUserModal, setShowUserModal] = useState(false);
+
+    const [editingUser, setEditingUser] = useState(null);
+
+    const [userForm, setUserForm] = useState({
+        username: "",
+        password: "",
+        role: "user"
+    });
 
 
 
@@ -56,8 +71,72 @@ export default function DocumentPage() {
     useEffect(() => {
 
         loadDocuments();
+        loadUsers();
 
     }, []);
+
+    const authConfig = () => ({
+        headers: {
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`
+        }
+    });
+
+    async function loadUsers() {
+        try {
+            const res = await axios.get(`${API}/users`, authConfig());
+            setUsers(res.data);
+        } catch (e) {
+            alert(e.response?.data?.detail || "Gagal memuat data user");
+        }
+    }
+
+    function openUserModal(user = null) {
+        setEditingUser(user);
+        setUserForm({
+            username: user?.username || "",
+            password: "",
+            role: user?.role || "user"
+        });
+        setShowUserModal(true);
+    }
+
+    async function saveUser(e) {
+        e.preventDefault();
+        if (!userForm.username.trim() || (!editingUser && !userForm.password)) {
+            alert("Username dan password wajib diisi untuk user baru");
+            return;
+        }
+
+        try {
+            const payload = {
+                username: userForm.username.trim(),
+                role: userForm.role
+            };
+            if (userForm.password) payload.password = userForm.password;
+
+            if (editingUser) {
+                await axios.put(`${API}/users/${editingUser.id}`, payload, authConfig());
+            } else {
+                await axios.post(`${API}/users`, payload, authConfig());
+            }
+
+            setShowUserModal(false);
+            await loadUsers();
+        } catch (e) {
+            alert(e.response?.data?.detail || "Gagal menyimpan user");
+        }
+    }
+
+    async function deleteUser(userId) {
+        if (!window.confirm("Hapus user ini?")) return;
+
+        try {
+            await axios.delete(`${API}/users/${userId}`, authConfig());
+            await loadUsers();
+        } catch (e) {
+            alert(e.response?.data?.detail || "Gagal menghapus user");
+        }
+    }
 
 
 
@@ -337,7 +416,142 @@ export default function DocumentPage() {
                         </tbody>
                     </table>
                 </div>
+
+                <div className="bg-white rounded-3xl shadow mt-8 mb-10 overflow-hidden">
+                    <div className="p-5 border-b flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-blue-100 text-blue-600">
+                                <Users size={20} />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black text-slate-800">Manajemen User</h2>
+                                <p className="text-sm text-slate-500">Kelola akun admin, guru, dan siswa</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => openUserModal()}
+                            className="bg-blue-600 text-white font-bold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center gap-2"
+                        >
+                            <UserPlus size={18} />
+                            Tambah User
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[560px]">
+                            <thead>
+                                <tr className="border-b bg-slate-50 text-slate-500 text-sm">
+                                    <th className="p-4 text-left">Username</th>
+                                    <th className="text-left">Role</th>
+                                    <th className="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {users.map(user => (
+                                    <tr key={user.id} className="border-b last:border-0 hover:bg-slate-50">
+                                        <td className="p-4 font-semibold text-slate-700">{user.username}</td>
+                                        <td>
+                                            <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                                {user.role}
+                                            </span>
+                                        </td>
+                                        <td className="text-center">
+                                            <div className="flex justify-center gap-3">
+                                                <button
+                                                    onClick={() => openUserModal(user)}
+                                                    title="Edit user"
+                                                    className="text-blue-500 hover:text-blue-700"
+                                                >
+                                                    <Pencil size={19} />
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteUser(user.id)}
+                                                    title="Hapus user"
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <Trash2 size={19} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {!users.length && (
+                                    <tr>
+                                        <td colSpan="3" className="p-6 text-center text-slate-500">
+                                            Belum ada data user.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
+
+            {showUserModal && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                    <form onSubmit={saveUser} className="bg-white rounded-3xl w-full max-w-[520px] p-8 shadow-2xl">
+                        <h2 className="text-2xl font-bold mb-6">
+                            {editingUser ? "Edit User" : "Tambah User"}
+                        </h2>
+
+                        <div className="space-y-4">
+                            <label className="block">
+                                <span className="block text-sm font-bold text-slate-600 mb-2">Username</span>
+                                <input
+                                    type="text"
+                                    value={userForm.username}
+                                    onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
+                                    required
+                                />
+                            </label>
+
+                            <label className="block">
+                                <span className="block text-sm font-bold text-slate-600 mb-2">
+                                    Password {editingUser && <span className="font-normal text-slate-400">(kosongkan jika tidak diubah)</span>}
+                                </span>
+                                <input
+                                    type="password"
+                                    value={userForm.password}
+                                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
+                                    required={!editingUser}
+                                />
+                            </label>
+
+                            <label className="block">
+                                <span className="block text-sm font-bold text-slate-600 mb-2">Role</span>
+                                <select
+                                    value={userForm.role}
+                                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-blue-500"
+                                >
+                                    <option value="user">User / Siswa</option>
+                                    <option value="admin">Admin/Teacher</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button
+                                type="button"
+                                onClick={() => setShowUserModal(false)}
+                                className="px-5 py-2 rounded-xl border"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-6 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                Simpan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
                         {
                 showModal && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
