@@ -44,6 +44,8 @@ Base.metadata.create_all(bind=engine)
 
 
 origins = [
+    "https://ai.ravilab.cloud",
+    "https://api.ravilab.cloud",
     "http://localhost",
     "http://localhost:3000",
 ]
