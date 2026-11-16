@@ -26,3 +26,4 @@ backend/core/__pycache__/ingestion.cpython-312.pyc
 backend/config/__pycache__/database.cpython-312.pyc
 /backend/testing
 /backend/app/chroma_db
+/skripsi
